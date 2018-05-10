@@ -1,0 +1,17 @@
+{
+  "name": "newfolder",
+  "version": "1.0.0",
+  "description": "",
+  "main": "reader.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "all-the-cities": "^2.0.1",
+    "csv-stringify": "^3.0.0",
+    "fork-pool": "^2.0.0",
+    "graceful-fs": "^4.1.11"
+  }
+}
