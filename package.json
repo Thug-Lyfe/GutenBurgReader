@@ -12,6 +12,7 @@
     "all-the-cities": "^2.0.1",
     "csv-stringify": "^3.0.0",
     "fork-pool": "^2.0.0",
-    "graceful-fs": "^4.1.11"
+    "graceful-fs": "^4.1.11",
+    "mongodb": "^3.0.8"
   }
 }

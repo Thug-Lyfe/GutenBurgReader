@@ -4,7 +4,8 @@ const cities = require("all-the-cities");
 const stringify = require('csv-stringify');
 const { fork } = require('child_process');
 const pool = require('fork-pool');
-//const parser = require("xml2json");
+//const mongoID = require('mongodb').ObjectID;
+
 //let suc_title = 0; let suc_auth = 0; let suc_release = 0; let count = 0;
 //let fail_count = 0;
 //let list_ids = [];
@@ -13,33 +14,37 @@ console.time("dbsave");
 let psql_auth = []
 let psql_book = []
 let psql_mens = []
-let city_ids = []
 let psql_city = []
 let auth_book = []
-let threads = []
+
+let mongo_auth = []
+let mongo_book = []
+let mongo_city = [];
+
+let city_ids = []
+
 let count = 0;
 let cp = new pool('./cityscan.js',null,null,{});
 let successFunc_meta = function (id, filename, auth, title, release, callback) {
-
-
     let auth_id = -1;
+    let book_id = psql_book.length
     for (var i = 0; i < psql_auth.length; i++) {
-        if (psql_auth[i].name == auth) {
+        if (psql_auth[i][1] == auth) {
             auth_id = i;
+            mongo_auth[i][2].push(book_id);
         }
     }
     if (auth_id == -1) {
         auth_id = psql_auth.length
         psql_auth.push([auth_id, auth])
-
+        mongo_auth.push([auth_id,auth,[book_id]]);
     }
 
-    let book_id = psql_book.length
     psql_book.push([book_id, filename, auth_id, title, release])
     auth_book.push([auth_id, book_id])
-    //console.log(psql_book)
-    //console.log(psql_auth)
-
+    mongo_book.push([book_id,filename,auth,title,release,[]])
+    
+    
     callback(book_id)
 
     /*count++;
@@ -62,7 +67,9 @@ let successFunc_city = function (book_id, list, callback) {
         if (!city_ids.includes(city_id)) {
             city_ids.push(city_id)
             psql_city.push([city_id, cities[city_id].name, cities[city_id].lat, cities[city_id].lon])
+            mongo_city.push([city_id,cities[city_id].name,{type:'Point',coordinates:[cities[city_id].lon, cities[city_id].lat]}])
         }
+        mongo_book[book_id][5].push(city_id)
         psql_mens.push([book_id, city_id])
     })
     callback(book_id)
@@ -72,13 +79,30 @@ let failFunc = function (filename, str, id, dirname) {
     console.log(str, "filename: " + filename, "id: " + id, "dirname: " + dirname, "  ::  ", filename.substring(0, filename.indexOf(".")).match(/^[0-9]*$/))
 }
 
+let cpQ = function(content,book_id){
+    cp.enqueue(content,(err,list)=>{
+        successFunc_city(book_id, list.stdout.city_list, (test) => {
+            console.log(count++,"",psql_book[book_id][1])
+            //for testing purposes only
+            if (count == 16) {
+                console.timeEnd("dbsave")
+                writeToCsv();
+                cp.drain((test)=>{
+                    
+                    
+                });
+            }
+        })
+    })
+}
+
 let writeToCsv = function () {
     stringify(psql_book, function (err, output) {
         fs.writeFile('csvs/psql_book.csv', output, 'utf8', function (err) {
             if (err) {
                 console.log('Some error occured - file either not saved or corrupted file saved.');
             } else {
-                console.log('It\'s saved!');
+                console.log('psql_book.csv is saved!');
             }
         });
     });
@@ -87,7 +111,7 @@ let writeToCsv = function () {
             if (err) {
                 console.log('Some error occured - file either not saved or corrupted file saved.');
             } else {
-                console.log('It\'s saved!');
+                console.log('psql_author.csv is saved!');
             }
         });
     });
@@ -96,7 +120,7 @@ let writeToCsv = function () {
             if (err) {
                 console.log('Some error occured - file either not saved or corrupted file saved.');
             } else {
-                console.log('It\'s saved!');
+                console.log('psql_city.csv is saved!');
             }
         });
     });
@@ -105,7 +129,7 @@ let writeToCsv = function () {
             if (err) {
                 console.log('Some error occured - file either not saved or corrupted file saved.');
             } else {
-                console.log('It\'s saved!');
+                console.log('psql_mention.csv is saved!');
             }
         });
     });
@@ -114,7 +138,34 @@ let writeToCsv = function () {
             if (err) {
                 console.log('Some error occured - file either not saved or corrupted file saved.');
             } else {
-                console.log('It\'s saved!');
+                console.log('neo4j_auth_book.csv is saved!');
+            }
+        });
+    });
+    stringify(mongo_auth, function (err, output) {
+        fs.writeFile('csvs/mongo_auth.csv', output, 'utf8', function (err) {
+            if (err) {
+                console.log('Some error occured - file either not saved or corrupted file saved.');
+            } else {
+                console.log('mongo_auth.csv is saved!');
+            }
+        });
+    });
+    stringify(mongo_book, function (err, output) {
+        fs.writeFile('csvs/mongo_book.csv', output, 'utf8', function (err) {
+            if (err) {
+                console.log('Some error occured - file either not saved or corrupted file saved.');
+            } else {
+                console.log('mongo_book.csv is saved!');
+            }
+        });
+    });
+    stringify(mongo_city, function (err, output) {
+        fs.writeFile('csvs/mongo_city.csv', output, 'utf8', function (err) {
+            if (err) {
+                console.log('Some error occured - file either not saved or corrupted file saved.');
+            } else {
+                console.log('mongo_city.csv is saved!');
             }
         });
     });
@@ -142,7 +193,9 @@ let somefunc = function (filename, dirname, content) {
         auth = "unknown";
         release = "unknown";
         id = filename
-        successFunc_meta(id, filename, auth, title, release);
+        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
+            cpQ(content,book_id)
+        });
 
     }
     else if (filename == "baleng2.txt") {
@@ -150,21 +203,27 @@ let somefunc = function (filename, dirname, content) {
         auth = "Robert Bell";
         release = "1846";
         id = filename
-        successFunc_meta(id, filename, auth, title, release);
+        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
+            cpQ(content,book_id)
+        });
     }
     else if (filename == "pntvw10.txt") {
         title = "The Point of View";
         auth = "Henry James";
         release = "01-10-2001";
         id = filename
-        successFunc_meta(id, filename, auth, title, release);
+        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
+            cpQ(content,book_id)
+        });
     }
     else if (filename == "Introduction_and_Copyright.txt") {
         title = "The Common New Testament";
         auth = "Timothy Clontz";
         release = "14-03-1999";
         id = filename
-        successFunc_meta(id, filename, auth, title, release);
+        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
+            cpQ(content,book_id)
+        });
     }
     else {
         fs.readFile("cache/epub/" + id + "/pg" + id + ".rdf", 'utf-8', function (err, meta_data) {
@@ -193,64 +252,11 @@ let somefunc = function (filename, dirname, content) {
 
             } else {
                 successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
-
-                    //const process = fork('./cityscan.js');
-                    //process.send({content})
-                    cp.enqueue(content,(err,list)=>{
-                        //console.log(list)
-                        successFunc_city(book_id, list.stdout.city_list, (test) => {
-                            console.log(count++,filename)
-                            if (count == 50) {
-                                console.timeEnd("dbsave")
-                                writeToCsv();
-                            }
-                            //process.kill()
-                            //console.log("thread kill: "+ threads.length)
-                            //threads.pop()
-                        })
-                    })
-                    /*process.on('message', (list)=>{
-                        
-                    })*/
-                    /*else{
-                        console.log("mother started")
-                        scanCities_v2(content, (list) => {
-                            successFunc_city(book_id, list, (test) => {
-                                console.log(count++,filename)
-                                if (count == 50) {
-                                    console.timeEnd("dbsave")
-                                    writeToCsv();
-                                }
-                            })
-                        })
-                    }*/
+                    cpQ(content,book_id)
                 });
-
-
             }
-
-
         })
     }
-    /*
-        for(var i = 0; i < list_ids.length; i++)
-        {
-            if(list_ids[i].id == id){
-                id+=1000000
-            }
-          else if(list_ids[i].id == id){
-            console.log("this id: 1: "+JSON.stringify({name:filename,id:id,dir:dirname}))
-            console.log("that id: 2: "+JSON.stringify(list_ids[i]))
-          }
-          
-        }
-            list_ids.push({name:filename,id:id,dir:dirname})
-    
-        
-        count_check++;
-        if(count_check%10000 == 0){
-            console.log(count_check)
-        }*/
 }
 
 
@@ -307,6 +313,7 @@ let scanCities_v2 = function (content, callback) {
     callback(list)
 }
 
-
-readFiles("files/10022/", somefunc, someErr)
+//use test/ for test files, or files/ for all files
+//remember test if at line 87.
+readFiles("test/", somefunc, someErr)
 
