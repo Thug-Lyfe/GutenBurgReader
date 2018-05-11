@@ -24,27 +24,39 @@ let mongo_city = [];
 let city_ids = []
 
 let count = 0;
-let cp = new pool('./cityscan.js',null,null,{});
+let count_fin = 0;
+let cp = new pool('./cityscan.js', null, null, {});
 let successFunc_meta = function (id, filename, auth, title, release, callback) {
     let auth_id = -1;
     let book_id = psql_book.length
     for (var i = 0; i < psql_auth.length; i++) {
         if (psql_auth[i][1] == auth) {
             auth_id = i;
-            mongo_auth[i][2].push(book_id);
+            mongo_auth[i].written.push("book" + book_id);
         }
     }
     if (auth_id == -1) {
         auth_id = psql_auth.length
         psql_auth.push([auth_id, auth])
-        mongo_auth.push([auth_id,auth,[book_id]]);
+        mongo_auth.push({
+            _id: "auth"+auth_id,
+            name: auth,
+            written: ["book"+book_id]
+        });
     }
 
     psql_book.push([book_id, filename, auth_id, title, release])
     auth_book.push([auth_id, book_id])
-    mongo_book.push([book_id,filename,auth,title,release,[]])
-    
-    
+    mongo_book.push({
+        _id: "book" + book_id,
+        filename: filename,
+        author: auth,
+        title: title,
+        release_date: release,
+        cities: []
+    })
+
+
     callback(book_id)
 
     /*count++;
@@ -66,10 +78,16 @@ let successFunc_city = function (book_id, list, callback) {
     list.forEach(function (city_id) {
         if (!city_ids.includes(city_id)) {
             city_ids.push(city_id)
+
             psql_city.push([city_id, cities[city_id].name, cities[city_id].lat, cities[city_id].lon])
-            mongo_city.push([city_id,cities[city_id].name,{type:'Point',coordinates:[cities[city_id].lon, cities[city_id].lat]}])
+
+            mongo_city.push({
+                _id: "city"+city_id,
+                name: cities[city_id].name,
+                location: { type: 'Point', coordinates: [cities[city_id].lon, cities[city_id].lat] }
+            })
         }
-        mongo_book[book_id][5].push(city_id)
+        mongo_book[book_id].cities.push("city" + city_id)
         psql_mens.push([book_id, city_id])
     })
     callback(book_id)
@@ -79,17 +97,18 @@ let failFunc = function (filename, str, id, dirname) {
     console.log(str, "filename: " + filename, "id: " + id, "dirname: " + dirname, "  ::  ", filename.substring(0, filename.indexOf(".")).match(/^[0-9]*$/))
 }
 
-let cpQ = function(content,book_id){
-    cp.enqueue(content,(err,list)=>{
+let cpQ = function (content, book_id) {
+    cp.enqueue(content, (err, list) => {
         successFunc_city(book_id, list.stdout.city_list, (test) => {
-            console.log(count++,"",psql_book[book_id][1])
+            
+            console.log("books fin: "+ ++count_fin, "   books remaining: "+(count-count_fin),"    % done: "+Math.floor(count_fin*10000/count)/100)
             //for testing purposes only
-            if (count == 16) {
+            if (count_fin == count) {
                 console.timeEnd("dbsave")
                 writeToCsv();
-                cp.drain((test)=>{
-                    
-                    
+                cp.drain((test) => {
+
+
                 });
             }
         })
@@ -142,32 +161,29 @@ let writeToCsv = function () {
             }
         });
     });
-    stringify(mongo_auth, function (err, output) {
-        fs.writeFile('csvs/mongo_auth.csv', output, 'utf8', function (err) {
-            if (err) {
-                console.log('Some error occured - file either not saved or corrupted file saved.');
-            } else {
-                console.log('mongo_auth.csv is saved!');
-            }
-        });
+
+    fs.writeFile('csvs/mongo_auth.json', JSON.stringify(mongo_auth), 'utf8', function (err) {
+        if (err) {
+            console.log('Some error occured - file either not saved or corrupted file saved.');
+        } else {
+            console.log('mongo_auth.json is saved!');
+        }
     });
-    stringify(mongo_book, function (err, output) {
-        fs.writeFile('csvs/mongo_book.csv', output, 'utf8', function (err) {
-            if (err) {
-                console.log('Some error occured - file either not saved or corrupted file saved.');
-            } else {
-                console.log('mongo_book.csv is saved!');
-            }
-        });
+
+    fs.writeFile('csvs/mongo_book.json', JSON.stringify(mongo_book), 'utf8', function (err) {
+        if (err) {
+            console.log('Some error occured - file either not saved or corrupted file saved.');
+        } else {
+            console.log('mongo_book.json is saved!');
+        }
     });
-    stringify(mongo_city, function (err, output) {
-        fs.writeFile('csvs/mongo_city.csv', output, 'utf8', function (err) {
-            if (err) {
-                console.log('Some error occured - file either not saved or corrupted file saved.');
-            } else {
-                console.log('mongo_city.csv is saved!');
-            }
-        });
+
+    fs.writeFile('csvs/mongo_city.json', JSON.stringify(mongo_city), 'utf8', function (err) {
+        if (err) {
+            console.log('Some error occured - file either not saved or corrupted file saved.');
+        } else {
+            console.log('mongo_city.json is saved!');
+        }
     });
 }
 
@@ -194,7 +210,7 @@ let somefunc = function (filename, dirname, content) {
         release = "unknown";
         id = filename
         successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
-            cpQ(content,book_id)
+            cpQ(content, book_id)
         });
 
     }
@@ -204,7 +220,7 @@ let somefunc = function (filename, dirname, content) {
         release = "1846";
         id = filename
         successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
-            cpQ(content,book_id)
+            cpQ(content, book_id)
         });
     }
     else if (filename == "pntvw10.txt") {
@@ -213,7 +229,7 @@ let somefunc = function (filename, dirname, content) {
         release = "01-10-2001";
         id = filename
         successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
-            cpQ(content,book_id)
+            cpQ(content, book_id)
         });
     }
     else if (filename == "Introduction_and_Copyright.txt") {
@@ -222,7 +238,7 @@ let somefunc = function (filename, dirname, content) {
         release = "14-03-1999";
         id = filename
         successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
-            cpQ(content,book_id)
+            cpQ(content, book_id)
         });
     }
     else {
@@ -252,7 +268,7 @@ let somefunc = function (filename, dirname, content) {
 
             } else {
                 successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
-                    cpQ(content,book_id)
+                    cpQ(content, book_id)
                 });
             }
         })
@@ -276,6 +292,7 @@ function readFiles(dirname, onFileContent, onError, callback) {
                 readFiles(dirname + filename + "/", somefunc, someErr);
             }
             if (filename.indexOf(".txt") != -1) {
+                count++;
                 fs.readFile(dirname + filename, 'utf-8', function (err, content) {
                     if (err) {
                         onError(err);
