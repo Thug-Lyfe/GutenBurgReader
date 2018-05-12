@@ -10,44 +10,51 @@ const pool = require('fork-pool');
 //let fail_count = 0;
 //let list_ids = [];
 console.time("dbsave");
+let totalTime = Date.now();
 //list of psql
 let psql_auth = []
-let psql_book = []
-let psql_mens = []
-let psql_city = []
-let auth_book = []
+//let psql_book = []
+//let psql_mens = []
+//let psql_city = []
+//let auth_book = []
 
-let mongo_auth = []
-let mongo_book = []
-let mongo_city = [];
-
+//let mongo_auth = []
+//let mongo_book = []
+//let mongo_city = [];
+fs.writeFile('csvs/mongo_auth.json', '', function () { console.log('done') })
+fs.writeFile('csvs/mongo_book.json', '', function () { console.log('done') })
+fs.writeFile('csvs/mongo_city.json', '', function () { console.log('done') })
+fs.writeFile('csvs/neo4j_auth_book.csv', '', function () { console.log('done') })
+fs.writeFile('csvs/psql_author.csv', '', function () { console.log('done') })
+fs.writeFile('csvs/psql_book.csv', '', function () { console.log('done') })
+fs.writeFile('csvs/psql_city.csv', '', function () { console.log('done') })
+fs.writeFile('csvs/psql_mention.csv', '', function () { console.log('done') })
 let city_ids = []
 
 let count = 0;
 let count_fin = 0;
+let count_book = 0;
 let cp = new pool('./cityscan.js', null, null, {});
 let successFunc_meta = function (id, filename, auth, title, release, callback) {
     let auth_id = -1;
-    let book_id = psql_book.length
+    let book_id = count_book++;
     for (var i = 0; i < psql_auth.length; i++) {
         if (psql_auth[i][1] == auth) {
             auth_id = i;
-            mongo_auth[i].written.push("book" + book_id);
+            //mongo_auth[i].written.push("book" + book_id);
         }
     }
     if (auth_id == -1) {
         auth_id = psql_auth.length
         psql_auth.push([auth_id, auth])
-        mongo_auth.push({
-            _id: "auth"+auth_id,
-            name: auth,
-            written: ["book"+book_id]
-        });
+        appendToJson({
+            _id: "auth" + auth_id,
+            name: auth
+        }, "mongo_auth.json")
     }
-
-    psql_book.push([book_id, filename, auth_id, title, release])
-    auth_book.push([auth_id, book_id])
-    mongo_book.push({
+    appendToCsv([book_id, "\"" + filename + "\"", auth_id, "\"" + title + "\"", release], "psql_book.csv")
+    appendToCsv([auth_id, book_id], "neo4j_auth_book.csv");
+    callback(book_id, {
         _id: "book" + book_id,
         filename: filename,
         author: auth,
@@ -55,76 +62,66 @@ let successFunc_meta = function (id, filename, auth, title, release, callback) {
         release_date: release,
         cities: []
     })
-
-
-    callback(book_id)
-
-    /*count++;
-    if (tit != "unknown") {
-        suc_title++;
-    }
-    if (au != "unknown") {
-        suc_auth++;
-    }
-    if (rel != "unknown") {
-        suc_release++;
-    }*/
-
-    //console.log("fails: " + fail_count, "files: " + count, "title%: " + Math.floor(suc_title * 100000 / count) / 1000 + "%", "auth%: " + Math.floor(suc_auth * 100000 / count) / 1000 + "%", "release%: " + Math.floor(suc_release * 100000 / count) / 1000 + "%")
-
 }
 
-let successFunc_city = function (book_id, list, callback) {
-    list.forEach(function (city_id) {
-        if (!city_ids.includes(city_id)) {
-            city_ids.push(city_id)
-
-            psql_city.push([city_id, cities[city_id].name, cities[city_id].lat, cities[city_id].lon])
-
-            mongo_city.push({
-                _id: "city"+city_id,
-                name: cities[city_id].name,
-                location: { type: 'Point', coordinates: [cities[city_id].lon, cities[city_id].lat] }
-            })
-        }
-        mongo_book[book_id].cities.push("city" + city_id)
-        psql_mens.push([book_id, city_id])
-    })
-    callback(book_id)
-}
 let failFunc = function (filename, str, id, dirname) {
     fail_count++;
     console.log(str, "filename: " + filename, "id: " + id, "dirname: " + dirname, "  ::  ", filename.substring(0, filename.indexOf(".")).match(/^[0-9]*$/))
 }
 
-let cpQ = function (content, book_id) {
+let cpQ = function (content, book_id, mongo_temp) {
+    let localTime = Date.now();
     cp.enqueue(content, (err, list) => {
-        successFunc_city(book_id, list.stdout.city_list, (test) => {
-            
-            console.log("books fin: "+ ++count_fin, "   books remaining: "+(count-count_fin),"    % done: "+Math.floor(count_fin*10000/count)/100)
-            //for testing purposes only
-            if (count_fin == count) {
-                console.timeEnd("dbsave")
-                writeToCsv();
-                cp.drain((test) => {
-
-
-                });
+        list.stdout.city_list.forEach(function (city_id) {
+            if (!city_ids.includes(city_id)) {
+                city_ids.push(city_id)
+                appendToCsv([city_id, "\"" + cities[city_id].name + "\"", cities[city_id].lat, cities[city_id].lon], "psql_city.csv")
+                appendToJson({
+                    _id: "city" + city_id,
+                    name: cities[city_id].name,
+                    location: { type: 'Point', coordinates: [cities[city_id].lon, cities[city_id].lat] }
+                }, "mongo_city.json")
             }
+            //console.log(mongo_temp)
+            mongo_temp.cities.push("city" + city_id)
+            appendToCsv([book_id, city_id], "psql_mention.csv")
         })
-    })
-}
+        appendToJson(mongo_temp, "mongo_book.json")
 
-let writeToCsv = function () {
-    stringify(psql_book, function (err, output) {
-        fs.writeFile('csvs/psql_book.csv', output, 'utf8', function (err) {
+        console.log("books fin: " + ++count_fin, "\tbooks remaining: " + (count - count_fin), "\t% done: " + Math.floor(count_fin * 10000 / count) / 100, "\ttotal time: "+(Date.now()-totalTime)/1000+"s","\tbook time: "+(Date.now()-localTime)/1000+"s")
+
+        if (count_fin == count) {
+            console.timeEnd("dbsave")
+            writeToCsv();
+            cp.drain((test) => {
+            });
+        }
+    })
+
+}
+let appendToCsv = function (content, file) {
+    stringify(content, function (err, output) {
+        fs.appendFile('csvs/' + file, content + '\n', 'utf8', function (err) {
             if (err) {
                 console.log('Some error occured - file either not saved or corrupted file saved.');
             } else {
-                console.log('psql_book.csv is saved!');
+                //console.log('psql_book.csv is saved!');
             }
         });
     });
+}
+
+let appendToJson = function (content, file) {
+    fs.appendFile('csvs/' + file, JSON.stringify(content), 'utf8', function (err) {
+        if (err) {
+            console.log('Some error occured - file either not saved or corrupted file saved.');
+        } else {
+            //console.log('mongo_auth.json is saved!');
+        }
+    });
+}
+
+let writeToCsv = function () {
     stringify(psql_auth, function (err, output) {
         fs.writeFile('csvs/psql_author.csv', output, 'utf8', function (err) {
             if (err) {
@@ -133,57 +130,6 @@ let writeToCsv = function () {
                 console.log('psql_author.csv is saved!');
             }
         });
-    });
-    stringify(psql_city, function (err, output) {
-        fs.writeFile('csvs/psql_city.csv', output, 'utf8', function (err) {
-            if (err) {
-                console.log('Some error occured - file either not saved or corrupted file saved.');
-            } else {
-                console.log('psql_city.csv is saved!');
-            }
-        });
-    });
-    stringify(psql_mens, function (err, output) {
-        fs.writeFile('csvs/psql_mention.csv', output, 'utf8', function (err) {
-            if (err) {
-                console.log('Some error occured - file either not saved or corrupted file saved.');
-            } else {
-                console.log('psql_mention.csv is saved!');
-            }
-        });
-    });
-    stringify(auth_book, function (err, output) {
-        fs.writeFile('csvs/neo4j_auth_book.csv', output, 'utf8', function (err) {
-            if (err) {
-                console.log('Some error occured - file either not saved or corrupted file saved.');
-            } else {
-                console.log('neo4j_auth_book.csv is saved!');
-            }
-        });
-    });
-
-    fs.writeFile('csvs/mongo_auth.json', JSON.stringify(mongo_auth), 'utf8', function (err) {
-        if (err) {
-            console.log('Some error occured - file either not saved or corrupted file saved.');
-        } else {
-            console.log('mongo_auth.json is saved!');
-        }
-    });
-
-    fs.writeFile('csvs/mongo_book.json', JSON.stringify(mongo_book), 'utf8', function (err) {
-        if (err) {
-            console.log('Some error occured - file either not saved or corrupted file saved.');
-        } else {
-            console.log('mongo_book.json is saved!');
-        }
-    });
-
-    fs.writeFile('csvs/mongo_city.json', JSON.stringify(mongo_city), 'utf8', function (err) {
-        if (err) {
-            console.log('Some error occured - file either not saved or corrupted file saved.');
-        } else {
-            console.log('mongo_city.json is saved!');
-        }
     });
 }
 
@@ -209,8 +155,8 @@ let somefunc = function (filename, dirname, content) {
         auth = "unknown";
         release = "unknown";
         id = filename
-        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
-            cpQ(content, book_id)
+        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id, mongo_temp) => {
+            cpQ(content, book_id, mongo_temp)
         });
 
     }
@@ -219,8 +165,8 @@ let somefunc = function (filename, dirname, content) {
         auth = "Robert Bell";
         release = "1846";
         id = filename
-        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
-            cpQ(content, book_id)
+        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id, mongo_temp) => {
+            cpQ(content, book_id, mongo_temp)
         });
     }
     else if (filename == "pntvw10.txt") {
@@ -228,8 +174,8 @@ let somefunc = function (filename, dirname, content) {
         auth = "Henry James";
         release = "01-10-2001";
         id = filename
-        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
-            cpQ(content, book_id)
+        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id, mongo_temp) => {
+            cpQ(content, book_id, mongo_temp)
         });
     }
     else if (filename == "Introduction_and_Copyright.txt") {
@@ -237,8 +183,8 @@ let somefunc = function (filename, dirname, content) {
         auth = "Timothy Clontz";
         release = "14-03-1999";
         id = filename
-        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
-            cpQ(content, book_id)
+        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id, mongo_temp) => {
+            cpQ(content, book_id, mongo_temp)
         });
     }
     else {
@@ -267,8 +213,8 @@ let somefunc = function (filename, dirname, content) {
                 failFunc(filename, "unknown title: ", id, dirname);
 
             } else {
-                successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id) => {
-                    cpQ(content, book_id)
+                successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id, mongo_temp) => {
+                    cpQ(content, book_id, mongo_temp)
                 });
             }
         })
@@ -332,5 +278,5 @@ let scanCities_v2 = function (content, callback) {
 
 //use test/ for test files, or files/ for all files
 //remember test if at line 87.
-readFiles("test/", somefunc, someErr)
+readFiles("files/", somefunc, someErr)
 
