@@ -272,7 +272,7 @@ function readFiles(dirname) {
 function readFiles_v2(dirname) {
 
     let filename = tmp_dirs[count_dir++]
-    console.log(dirname + filename)
+    //console.log(dirname + filename)
     if (filename.indexOf('.') == -1) {
         let file_count = 0;
         filenames = fs.readdirSync(dirname + filename + "/");
@@ -293,15 +293,15 @@ function readFiles_v2(dirname) {
             }
         })
     }
-    else if (filename.indeOf('.txt') != -1) {
+    else if (filename.indexOf('.txt') != -1) {
         fs.readFile(dirname + filename, 'utf-8', function (err, content) {
             if (err) {
                 onError(err);
                 return;
             }
             somefunc(filename, dirname + filename + "/", content, (res) => {
-                console.log(res, "\tdir: " + filename + "/" + filename)
-                    readFiles_v2(dirname)
+                console.log(res, "\tdir: " + dirname + "/" + filename)
+                readFiles_v2(dirname)
             })
         })
     }
@@ -370,8 +370,9 @@ let redirect = function (target_dir, from_dir) {
     })
 }*/
 let redirect_v2 = function (target_dir) {
+
     tmp_dirs = fs.readdirSync(target_dir);
-    readFiles(target_dir, somefunc)
+    readFiles_v2(target_dir, somefunc)
 }
 //for renaming
 let count_dir = 0;
@@ -381,5 +382,6 @@ let dir_count = 0;
 let file_count = 0;
 let target = 'files/'
 let tmp_dirs = null
-
+for(i = 0;i <100;i++){
 redirect_v2(target)
+}
