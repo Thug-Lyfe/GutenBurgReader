@@ -97,7 +97,7 @@ let cpQ = async function (content, book_id, mongo_temp, callback) {
         })
         appendToJson(mongo_temp, "mongo_book.json")
 
-        console.log("books fin: " + ++count_fin, "\tbooks remaining: " + (count - count_fin), "\t% done: " + Math.floor(count_fin * 10000 / count) / 100, "\ttotal time: " + (Date.now() - totalTime) / 1000 + "s", )
+        //console.log("books fin: " + ++count_fin, "\tbooks remaining: " + (count - count_fin), "\t% done: " + Math.floor(count_fin * 10000 / count) / 100, "\ttotal time: " + (Date.now() - totalTime) / 1000 + "s", )
 
         if (count_fin == count) {
             console.timeEnd("dbsave")
@@ -105,7 +105,7 @@ let cpQ = async function (content, book_id, mongo_temp, callback) {
             /*cp.drain((test) => {
             });*/
         }
-        callback(book_id)
+        callback("books fin: " + ++count_fin+ "\tbooks remaining: " + (count - count_fin)+ "\t% done: " + Math.floor(count_fin * 10000 / count) / 100+ "\ttotal time: " + (Date.now() - totalTime) / 1000 + "s", )
     })
 
 }
@@ -256,6 +256,8 @@ function readFiles(dirname) {
                 return;
             }
             somefunc(file, dirname + tmp_dirs[dir_count] + "/", content, (res) => {
+
+                console.log("dir: "+dirname+ tmp_dirs[dir_count]+ "/"+file + new Array(10-file.length).join(" "),"\t"+res)
                 if (++file_count == filenames.length) {
                     dir_count++;
                     file_count = 0;
