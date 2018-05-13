@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "all-the-cities": "^2.0.1",
+    "async": "^2.6.0",
     "csv-stringify": "^3.0.0",
     "fork-pool": "^2.0.0",
     "graceful-fs": "^4.1.11",
