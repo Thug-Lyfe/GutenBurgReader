@@ -105,7 +105,7 @@ let cpQ = async function (content, book_id, mongo_temp, callback) {
             /*cp.drain((test) => {
             });*/
         }
-        callback("books fin: " + ++count_fin+ "\tbooks remaining: " + (count - count_fin)+ "\t% done: " + Math.floor(count_fin * 10000 / count) / 100+ "\ttotal time: " + (Date.now() - totalTime) / 1000 + "s", )
+        callback("books fin: " + ++count_fin + "\tbooks remaining: " + (count - count_fin) + "\t% done: " + Math.floor(count_fin * 10000 / count) / 100 + "\ttotal time: " + (Date.now() - totalTime) / 1000 + "s", )
     })
 
 }
@@ -249,30 +249,68 @@ function readFiles(dirname) {
     console.log(dirname + tmp_dirs[dir_count])
     filenames = fs.readdirSync(dirname + tmp_dirs[dir_count] + "/");
     filenames.forEach(function (file) {
-        fs.readFile(dirname + tmp_dirs[dir_count] + "/" + file, 'utf-8', function (err, content) {
-            
+        if (file.indexOf(''))
+            fs.readFile(dirname + tmp_dirs[dir_count] + "/" + file, 'utf-8', function (err, content) {
+
+                if (err) {
+                    onError(err);
+                    return;
+                }
+                somefunc(file, dirname + tmp_dirs[dir_count] + "/", content, (res) => {
+
+                    console.log(res, "\tdir: " + dirname + tmp_dirs[dir_count] + "/" + file)
+                    if (++file_count == filenames.length) {
+                        dir_count++;
+                        file_count = 0;
+                        readFiles(dirname)
+                    }
+                })
+            })
+    })
+}
+
+function readFiles_v2(dirname) {
+
+    let filename = tmp_dirs[count_dir++]
+    console.log(dirname + filename)
+    if (filename.indexOf('.') == -1) {
+        let file_count = 0;
+        filenames = fs.readdirSync(dirname + filename + "/");
+        filenames.forEach(function (file) {
+            if (file.indexOf('.txt') != -1) {
+                fs.readFile(dirname + filename + "/" + file, 'utf-8', function (err, content) {
+                    if (err) {
+                        onError(err);
+                        return;
+                    }
+                    somefunc(file, dirname + filename + "/", content, (res) => {
+                        console.log(res, "\tdir: " + dirname + filename + "/" + file)
+                        if (++file_count == filenames.length) {
+                            readFiles_v2(dirname)
+                        }
+                    })
+                })
+            }
+        })
+    }
+    else if (filename.indeOf('.txt') != -1) {
+        fs.readFile(dirname + filename, 'utf-8', function (err, content) {
             if (err) {
                 onError(err);
                 return;
             }
-            somefunc(file, dirname + tmp_dirs[dir_count] + "/", content, (res) => {
-
-                console.log("dir: "+dirname+ tmp_dirs[dir_count]+ "/"+file + new Array(10-file.length).join(" "),"\t"+res)
-                if (++file_count == filenames.length) {
-                    dir_count++;
-                    file_count = 0;
-                    readFiles(dirname)
-                }
+            somefunc(filename, dirname + filename + "/", content, (res) => {
+                console.log(res, "\tdir: " + filename + "/" + filename)
+                    readFiles_v2(dirname)
             })
-
         })
-    })
+    }
 }
 
 
 
 let scanCities_v2 = function (content, callback) {
-    
+
     let index = content.indexOf("*** START OF THIS PROJECT GUTENBERG") + 35;
     let end = content.indexOf("*** END OF THIS PROJECT GUTENBERG");
     if (end == -1) {
@@ -301,7 +339,7 @@ let scanCities_v2 = function (content, callback) {
 //remember test if at line 87.
 //readFiles("files/", somefunc, 
 
-
+/*
 let redirect = function (target_dir, from_dir) {
     fs.readdir(from_dir, function (err, filenames) {
         if (err) {
@@ -310,7 +348,7 @@ let redirect = function (target_dir, from_dir) {
         }
         filenames.forEach(function (filename) {
             if (filename.indexOf(".") == -1) {
-                redirect(target_dir,from_dir + filename + "/");
+                redirect(target_dir, from_dir + filename + "/");
             }
             if (filename.indexOf(".txt") != -1) {
                 if (count_files == 0) {
@@ -330,23 +368,18 @@ let redirect = function (target_dir, from_dir) {
             }
         });
     })
-}
-let redirect_v2 = function (target_dir, from_dir) {
-    if (!fs.existsSync(target_dir)) {
-        fs.mkdirSync(target_dir)
-    }
-    //redirect(target_dir, from_dir)
-    tmp_dirs= fs.readdirSync(target_dir);
+}*/
+let redirect_v2 = function (target_dir) {
+    tmp_dirs = fs.readdirSync(target_dir);
     readFiles(target_dir, somefunc)
-    
 }
 //for renaming
 let count_dir = 0;
-let count_files = 0;
+//let count_files = 0;
 //for recursive
 let dir_count = 0;
 let file_count = 0;
-let target = 'files_final/'
+let target = 'files/'
 let tmp_dirs = null
 
-redirect_v2(target, 'files/')
+redirect_v2(target)
