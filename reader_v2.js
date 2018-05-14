@@ -1,31 +1,14 @@
-//const fs = require('fs');
 const fs = require('graceful-fs');
 const cities = require("all-the-cities");
 const stringify = require('csv-stringify');
 const { fork } = require('child_process');
 const pool = require('fork-pool');
 var async = require('async');
-//const mongoID = require('mongodb').ObjectID;
 
-//let suc_title = 0; let suc_auth = 0; let suc_release = 0; let count = 0;
-//let fail_count = 0;
-//let list_ids = [];
 console.time("dbsave");
 let totalTime = Date.now();
-//list of psql
+
 let psql_auth = []
-//let psql_book = []
-//let psql_mens = []
-//let psql_city = []
-//let auth_book = []
-
-//let mongo_auth = []
-//let mongo_book = []
-//let mongo_city = [];
-
-
-
-
 
 fs.writeFile('csvs/mongo_auth.json', '', function () { console.log('done') })
 fs.writeFile('csvs/mongo_book.json', '', function () { console.log('done') })
@@ -47,7 +30,6 @@ let successFunc_meta = async function (id, filename, auth, title, release, callb
     for (var i = 0; i < psql_auth.length; i++) {
         if (psql_auth[i][1] == auth) {
             auth_id = i;
-            //mongo_auth[i].written.push("book" + book_id);
         }
     }
     if (auth_id == -1) {
@@ -88,15 +70,11 @@ let cpQ = async function (content, book_id, mongo_temp, callback) {
                     location: { type: 'Point', coordinates: [cities[city_id].lon, cities[city_id].lat] }
                 }, "mongo_city.json")
             }
-            //console.log(mongo_temp)
             mongo_temp.cities.push("city" + city_id)
             appendToCsv([book_id, city_id], "psql_mention.csv")
         })
         appendToJson(mongo_temp, "mongo_book.json")
 
-        //console.log("books fin: " + ++count_fin, "\tbooks remaining: " + (count - count_fin), "\t% done: " + Math.floor(count_fin * 10000 / count) / 100, "\ttotal time: " + (Date.now() - totalTime) / 1000 + "s", )
-
-        
         callback("books fin: " + ++count_fin + "\tbooks remaining: " + (count - count_fin) + "\t% done: " + Math.floor(count_fin * 10000 / count) / 100 + "\ttotal time: " + (Date.now() - totalTime) / 1000 + "s", )
     })
 
@@ -122,18 +100,7 @@ let appendToJson = function (content, file) {
         }
     });
 }
-/*
-let writeToCsv = function () {
-    stringify(psql_auth, function (err, output) {
-        fs.writeFile('csvs/psql_author.csv', output, 'utf8', function (err) {
-            if (err) {
-                console.log('Some error occured - file either not saved or corrupted file saved.');
-            } else {
-                console.log('psql_author.csv is saved!');
-            }
-        });
-    });
-}*/
+
 let somefunc = async function (filename, dirname, content, callback) {
     let title = null; let auth = null; let release = null;
     let index = content.indexOf("[Etext #");
@@ -156,7 +123,7 @@ let somefunc = async function (filename, dirname, content, callback) {
         auth = "unknown";
         release = "unknown";
         id = filename
-        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id, mongo_temp) => {
+        successFunc_meta(id, dirname.substring(6, dirname.length), auth, title, release, (book_id, mongo_temp) => {
             cpQ(content, book_id, mongo_temp, (res) => {
                 callback(res)
             })
@@ -168,7 +135,7 @@ let somefunc = async function (filename, dirname, content, callback) {
         auth = "Robert Bell";
         release = "1846";
         id = filename
-        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id, mongo_temp) => {
+        successFunc_meta(id, dirname.substring(6, dirname.length), auth, title, release, (book_id, mongo_temp) => {
             cpQ(content, book_id, mongo_temp, (res) => {
                 callback(res)
             })
@@ -179,7 +146,7 @@ let somefunc = async function (filename, dirname, content, callback) {
         auth = "Henry James";
         release = "01-10-2001";
         id = filename
-        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id, mongo_temp) => {
+        successFunc_meta(id, dirname.substring(6, dirname.length), auth, title, release, (book_id, mongo_temp) => {
             cpQ(content, book_id, mongo_temp, (res) => {
                 callback(res)
             })
@@ -190,7 +157,7 @@ let somefunc = async function (filename, dirname, content, callback) {
         auth = "Timothy Clontz";
         release = "14-03-1999";
         id = filename
-        successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id, mongo_temp) => {
+        successFunc_meta(id, dirname.substring(6, dirname.length), auth, title, release, (book_id, mongo_temp) => {
             cpQ(content, book_id, mongo_temp, (res) => {
                 callback(res)
             })
@@ -222,7 +189,7 @@ let somefunc = async function (filename, dirname, content, callback) {
                 failFunc(filename, "unknown title: ", id, dirname);
 
             } else {
-                successFunc_meta(id, dirname.substring(6, dirname.length) + filename, auth, title, release, (book_id, mongo_temp) => {
+                successFunc_meta(id, dirname.substring(6, dirname.length), auth, title, release, (book_id, mongo_temp) => {
                     cpQ(content, book_id, mongo_temp, (res) => {
                         callback(res)
                     })
@@ -236,30 +203,6 @@ let somefunc = async function (filename, dirname, content, callback) {
 let someErr = function (err, index) {
     console.log(index, err)
 }
-/*
-function readFiles(dirname) {
-    console.log(dirname + tmp_dirs[dir_count])
-    filenames = fs.readdirSync(dirname + tmp_dirs[dir_count] + "/");
-    filenames.forEach(function (file) {
-        if (file.indexOf(''))
-            fs.readFile(dirname + tmp_dirs[dir_count] + "/" + file, 'utf-8', function (err, content) {
-
-                if (err) {
-                    onError(err);
-                    return;
-                }
-                somefunc(file, dirname + tmp_dirs[dir_count] + "/", content, (res) => {
-
-                    console.log(res, "\tdir: " + dirname + tmp_dirs[dir_count] + "/" + file)
-                    if (++file_count == filenames.length) {
-                        dir_count++;
-                        file_count = 0;
-                        readFiles(dirname)
-                    }
-                })
-            })
-    })
-}*/
 
 function readFiles_v2(dirname) {
     if (count_dir < tmp_dirs.length) {
@@ -274,7 +217,7 @@ function readFiles_v2(dirname) {
                             onError(err);
                             return;
                         }
-                        somefunc(file, dirname + filename + "/", content, (res) => {
+                        somefunc(file, dirname + filename , content, (res) => {
                             console.log(res, "\tavg time: " + Math.round((Date.now() - totalTime) / count_fin) + "ms", "\tdir: " + dirname + filename + "/" + file)
                             if (++file_count == filenames.length) {
                                 readFiles_v2(dirname)
@@ -290,7 +233,7 @@ function readFiles_v2(dirname) {
                     onError(err);
                     return;
                 }
-                somefunc(filename, dirname + filename + "/", content, (res) => {
+                somefunc(filename, dirname + filename, content, (res) => {
                     console.log(res, "\tavg time: " + Math.round((Date.now() - totalTime) / count_fin) + "ms", "\tdir: " + dirname + filename)
                     readFiles_v2(dirname)
                 })
@@ -331,50 +274,6 @@ let scanCities_v2 = function (content, callback) {
     callback(list)
 }
 
-//use test/ for test files, or files/ for all files
-//remember test if at line 87.
-//readFiles("files/", somefunc, 
-
-/*
-let redirect = function (target_dir, from_dir) {
-    fs.readdir(from_dir, function (err, filenames) {
-        if (err) {
-            throw err;
-            return;
-        }
-        filenames.forEach(function (filename) {
-            if (filename.indexOf(".") == -1) {
-                redirect(target_dir, from_dir + filename + "/");
-            }
-            if (filename.indexOf(".txt") != -1) {
-                if (count_files == 0) {
-                    if (!fs.existsSync(target_dir + count_dir)) {
-                        fs.mkdirSync(target_dir + count_dir)
-                    }
-                }
-                fs.rename(from_dir + filename, target_dir + count_dir + "/" + filename, (err) => {
-                    if (err) throw err;
-                    console.log('Rename complete!');
-                });
-
-                if (++count_files == 300) {
-                    count_files = 0
-                    count_dir++;
-                }
-            }
-        });
-    })
-}*/
-
-
-
-//for old version
-//let count_files = 0;
-//for recursive
-//let dir_count = 0;
-//let file_count = 0;
-
-// new version
 let count = 37237;
 let count_fin = 0;
 let count_book = 0;
